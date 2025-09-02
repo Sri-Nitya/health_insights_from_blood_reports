@@ -1,6 +1,5 @@
 # Blood Report Analyzer 🧬
 
-App : https://healthinsightsfrombloodreports-4nwvbcojtpweappaozcf6qs.streamlit.app/
 
 A Streamlit-based web application that helps users upload, analyze, and track their blood reports using AI-powered insights.
 
