@@ -13,7 +13,6 @@ if "username" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-# Restore persisted session (keeps user logged in across refreshes on same machine)
 if not st.session_state.username:
     persisted = load_current_session()
     if persisted:
@@ -21,10 +20,6 @@ if not st.session_state.username:
         # If a user session exists, show dashboard by default
         if "page" not in st.session_state or st.session_state.page == "home":
             st.session_state.page = "dashboard"
-
-# -------------------------
-# HOME PAGE
-# -------------------------
 
 if st.session_state.page == "home":
 
@@ -51,30 +46,15 @@ if st.session_state.page == "home":
             st.session_state.page = "guest_upload"
             st.rerun()
 
-# -------------------------
-# LOGIN PAGE
-# -------------------------
 
 elif st.session_state.page == "login":
     login_page()
 
-# -------------------------
-# SIGNUP PAGE
-# -------------------------
-
 elif st.session_state.page == "signup":
     signup_page()
 
-# -------------------------
-# GUEST UPLOAD PAGE
-# -------------------------
-
 elif st.session_state.page == "guest_upload":
     guest_upload_page()
-
-# -------------------------
-# DASHBOARD PAGE
-# -------------------------
 
 elif st.session_state.page == "dashboard":
     if not st.session_state.username:

@@ -18,7 +18,6 @@ def dashboard_page():
     st.title("📊 Blood Report Dashboard")
     st.write(f"Welcome **{username}**")
 
-    # Sidebar navigation for dashboard sub-views
     view = st.sidebar.radio("Navigate", ["Overview", "Previous Reports"])
 
     if st.sidebar.button("🚪 Logout"):
@@ -134,14 +133,12 @@ def dashboard_page():
 
                 if file_bytes and file_type:
 
-                    # decode stored base64 and decrypt if encryption enabled
                     enc_bytes = base64.b64decode(file_bytes)
                     try:
                         from database_handler import decrypt_bytes
 
                         file_bytes = decrypt_bytes(enc_bytes)
                     except Exception:
-                        # fallback: use raw decoded bytes
                         file_bytes = enc_bytes
 
                     if file_type == "application/pdf":

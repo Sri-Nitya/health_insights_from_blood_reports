@@ -50,7 +50,6 @@ def init_db():
     conn.close()
 
 
-# migrate legacy JSON users file into SQLite if present
 def _migrate_json_to_db():
     if not os.path.exists(DATA_FILE):
         return
@@ -88,7 +87,6 @@ def _migrate_json_to_db():
     conn.close()
 
 
-# ensure DB initialized on import
 init_db()
 _migrate_json_to_db()
 
@@ -119,9 +117,7 @@ def authenticate_user(email, password):
         stored = row[0]
         if stored and stored.startswith("$2"):
             return bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8"))
-        # legacy plaintext stored in DB? unlikely; handle comparison
         if stored == password:
-            # rehash and store
             newhash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
             cur.execute("UPDATE users SET password = ? WHERE email = ?", (newhash, email))
             conn.commit()
@@ -141,7 +137,6 @@ def _get_fernet():
         except Exception:
             pass
 
-    # look for key file
     if os.path.exists(FERNET_KEY_FILE):
         try:
             with open(FERNET_KEY_FILE, "rb") as f:
@@ -150,7 +145,6 @@ def _get_fernet():
         except Exception:
             pass
 
-    # generate key and save (demo convenience)
     try:
         k = Fernet.generate_key()
         with open(FERNET_KEY_FILE, "wb") as f:

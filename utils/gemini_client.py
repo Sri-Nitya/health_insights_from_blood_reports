@@ -50,7 +50,6 @@ class GeminiClient:
         except Exception:
             return "AI service unavailable. Please try again later."
 
-        # shorten if needed
         if summary and (len(summary) > 900 or summary.count("\n") > 8):
             short_prompt = (
                 "Please convert the following output into concise bullet points (<=12 bullets), "
