@@ -23,10 +23,6 @@ A Streamlit-based web application that helps users upload, analyze, and track th
 ### Installation
 
 1. **Clone the repository:**
-    ```bash
-    git clone https://github.com/yourusername/blood-report-analyzer.git
-    cd blood-report-analyzer
-    ```
 
 2. **Install dependencies:**
     ```bash
