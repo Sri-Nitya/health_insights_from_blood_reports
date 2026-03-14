@@ -1,46 +1,247 @@
 import json
 import os
 import base64
+import bcrypt
+from cryptography.fernet import Fernet
+import typing
+import sqlite3
+from datetime import datetime
 
 
-DATA_FILE = "users.json"
+BASE_DIR = os.path.dirname(__file__)
+DATA_FILE = os.path.join(BASE_DIR, "users.json")
+CURRENT_SESSION_FILE = os.path.join(BASE_DIR, "current_session.json")
+FERNET_KEY_FILE = os.path.join(BASE_DIR, "fernet.key")
+REPORT_ENCRYPTION_KEY = os.environ.get("REPORT_KEY")
+DB_FILE = os.path.join(BASE_DIR, "data.db")
 
-def load_users():
+
+def _get_conn():
+    return sqlite3.connect(DB_FILE)
+
+
+def init_db():
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            email TEXT PRIMARY KEY,
+            password TEXT NOT NULL,
+            username TEXT
+        )
+        """
+    )
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            text TEXT,
+            file_bytes TEXT,
+            file_type TEXT,
+            file_name TEXT,
+            created_at TEXT,
+            FOREIGN KEY(email) REFERENCES users(email)
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
+# migrate legacy JSON users file into SQLite if present
+def _migrate_json_to_db():
     if not os.path.exists(DATA_FILE):
-        return {}
-    with open(DATA_FILE, "r") as f:
-        return json.load(f)
+        return
+    try:
+        with open(DATA_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return
 
-def save_users(users):
-    with open(DATA_FILE, "w") as f:
-        json.dump(users, f)
+    conn = _get_conn()
+    cur = conn.cursor()
+    for email, info in data.items():
+        password = info.get("password")
+        username = info.get("username")
+        try:
+            cur.execute("INSERT OR IGNORE INTO users(email, password, username) VALUES (?, ?, ?)", (email, password, username))
+        except Exception:
+            pass
+        for rpt in info.get("reports", []):
+            try:
+                cur.execute(
+                    "INSERT INTO reports(email, text, file_bytes, file_type, file_name, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                    (
+                        email,
+                        rpt.get("text"),
+                        rpt.get("file_bytes"),
+                        rpt.get("file_type"),
+                        rpt.get("file_name"),
+                        datetime.utcnow().isoformat(),
+                    ),
+                )
+            except Exception:
+                pass
+    conn.commit()
+    conn.close()
 
-def register_user(email, password):
-    users = load_users()
-    if email in users:
+
+# ensure DB initialized on import
+init_db()
+_migrate_json_to_db()
+
+def register_user(email, password, username=None):
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        # store bcrypt hashed password
+        hashed = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        cur.execute("INSERT INTO users(email, password, username) VALUES (?, ?, ?)", (email, hashed, username))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
         return False
-    users[email] = {"password": password, "reports": []}
-    save_users(users)
-    return True
+    except Exception:
+        return False
+    finally:
+        conn.close()
 
 def authenticate_user(email, password):
-    users = load_users()
-    return email in users and users[email]["password"] == password
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT password FROM users WHERE email = ?", (email,))
+        row = cur.fetchone()
+        if not row:
+            return False
+        stored = row[0]
+        if stored and stored.startswith("$2"):
+            return bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8"))
+        # legacy plaintext stored in DB? unlikely; handle comparison
+        if stored == password:
+            # rehash and store
+            newhash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+            cur.execute("UPDATE users SET password = ? WHERE email = ?", (newhash, email))
+            conn.commit()
+            return True
+        return False
+    except Exception:
+        return False
+    finally:
+        conn.close()
+
+
+def _get_fernet():
+    key = REPORT_ENCRYPTION_KEY
+    if key:
+        try:
+            return Fernet(key.encode("utf-8"))
+        except Exception:
+            pass
+
+    # look for key file
+    if os.path.exists(FERNET_KEY_FILE):
+        try:
+            with open(FERNET_KEY_FILE, "rb") as f:
+                k = f.read().strip()
+                return Fernet(k)
+        except Exception:
+            pass
+
+    # generate key and save (demo convenience)
+    try:
+        k = Fernet.generate_key()
+        with open(FERNET_KEY_FILE, "wb") as f:
+            f.write(k)
+        return Fernet(k)
+    except Exception:
+        return None
+
+
+def encrypt_bytes(raw: bytes) -> bytes:
+    f = _get_fernet()
+    if not f:
+        return raw
+    try:
+        return f.encrypt(raw)
+    except Exception:
+        return raw
+
+
+def decrypt_bytes(enc: bytes) -> bytes:
+    f = _get_fernet()
+    if not f:
+        return enc
+    try:
+        return f.decrypt(enc)
+    except Exception:
+        return enc
 
 def save_report(email, text, file_bytes, file_type, file_name):
-    users = load_users()
-    if email in users:
-        encoded_bytes = base64.b64encode(file_bytes).decode("utf-8")  # Encode bytes to base64 string
-        users[email]["reports"].append({
-            "text": text,
-            "file_bytes": encoded_bytes,
-            "file_type": file_type,
-            "file_name": file_name
-        })
-        save_users(users)
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        enc = encrypt_bytes(file_bytes)
+        encoded_bytes = base64.b64encode(enc).decode("utf-8")
+        cur.execute(
+            "INSERT INTO reports(email, text, file_bytes, file_type, file_name, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+            (email, text, encoded_bytes, file_type, file_name, datetime.utcnow().isoformat()),
+        )
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
 
 def load_reports_for_user(email):
-    users = load_users()
-    if email in users:
-        return users[email].get("reports", [])
-    return []
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT text, file_bytes, file_type, file_name, created_at FROM reports WHERE email = ? ORDER BY id",
+            (email,),
+        )
+        rows = cur.fetchall()
+        reports = []
+        for r in rows:
+            reports.append({
+                "text": r[0],
+                "file_bytes": r[1],
+                "file_type": r[2],
+                "file_name": r[3],
+                "created_at": r[4],
+            })
+        return reports
+    except Exception:
+        return []
+    finally:
+        conn.close()
+
+
+def save_current_session(email):
+    try:
+        with open(CURRENT_SESSION_FILE, "w") as f:
+            json.dump({"username": email}, f)
+    except Exception:
+        pass
+
+
+def load_current_session():
+    if not os.path.exists(CURRENT_SESSION_FILE):
+        return None
+    try:
+        with open(CURRENT_SESSION_FILE, "r") as f:
+            data = json.load(f)
+            return data.get("username")
+    except Exception:
+        return None
+
+
+def clear_current_session():
+    try:
+        if os.path.exists(CURRENT_SESSION_FILE):
+            os.remove(CURRENT_SESSION_FILE)
+    except Exception:
+        pass

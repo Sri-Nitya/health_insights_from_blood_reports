@@ -3,3 +3,5 @@ Pillow
 pytesseract
 PyMuPDF
 google-generativeai
+bcrypt
+cryptography
