@@ -1,5 +1,5 @@
 import streamlit as st
-from database_handler import authenticate_user, save_current_session
+from database_handler import authenticate_user, save_current_session, get_username
 
 
 def login_page():
@@ -11,7 +11,7 @@ def login_page():
 
     if st.button("Login"):
         if authenticate_user(email, password):
-            st.session_state.username = email
+            st.session_state.username = get_username(email)
             save_current_session(email)
             st.session_state.page = "dashboard"
             st.rerun()

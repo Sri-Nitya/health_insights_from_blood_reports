@@ -117,11 +117,6 @@ def authenticate_user(email, password):
         stored = row[0]
         if stored and stored.startswith("$2"):
             return bcrypt.checkpw(password.encode("utf-8"), stored.encode("utf-8"))
-        if stored == password:
-            newhash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-            cur.execute("UPDATE users SET password = ? WHERE email = ?", (newhash, email))
-            conn.commit()
-            return True
         return False
     except Exception:
         return False
@@ -218,8 +213,8 @@ def save_current_session(email):
     try:
         with open(CURRENT_SESSION_FILE, "w") as f:
             json.dump({"username": email}, f)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Error saving session: {e}")
 
 
 def load_current_session():
@@ -239,3 +234,18 @@ def clear_current_session():
             os.remove(CURRENT_SESSION_FILE)
     except Exception:
         pass
+
+def get_username(email):
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT username FROM users WHERE email = ?", (email,))
+        row = cur.fetchone()
+        if row:
+            return row[0]
+        return None
+    except Exception:
+        return None
+    finally:
+        conn.close()
+        

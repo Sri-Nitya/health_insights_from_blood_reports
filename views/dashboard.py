@@ -20,7 +20,7 @@ def dashboard_page():
 
     view = st.sidebar.radio("Navigate", ["Overview", "Previous Reports"])
 
-    if st.sidebar.button("🚪 Logout"):
+    if st.sidebar.button("Logout"):
         st.session_state.clear()
         clear_current_session()
         st.session_state.page = "home"
