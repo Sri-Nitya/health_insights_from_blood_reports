@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import base64
@@ -172,17 +173,28 @@ def save_report(email, text, file_bytes, file_type, file_name):
     conn = _get_conn()
     cur = conn.cursor()
     try:
+        report_hash = hashlib.sha256(file_bytes).hexdigest()
+
+        cur.execute(
+            "SELECT 1 FROM reports WHERE email = ? AND hash = ?",
+            (email, report_hash)
+        )
+        existing = cur.fetchone()
+
+        if existing:
+            print("Duplicate report detected. Skipping save.")
+            return
         enc = encrypt_bytes(file_bytes)
         encrypted_text = encrypt_bytes(text.encode("utf-8"))
         encoded_text = base64.b64encode(encrypted_text).decode("utf-8")
         encoded_bytes = base64.b64encode(enc).decode("utf-8")
         cur.execute(
-            "INSERT INTO reports(email, text, file_bytes, file_type, file_name, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (email, encoded_text, encoded_bytes, file_type, file_name, datetime.utcnow().isoformat()),
+            "INSERT INTO reports(email, text, file_bytes, file_type, file_name, created_at, hash) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (email, encoded_text, encoded_bytes, file_type, file_name, datetime.utcnow().isoformat(), report_hash),
         )
         conn.commit()
-    except Exception:
-        pass
+    except Exception as e:
+        print("Error saving report:", e)
     finally:
         conn.close()
 
@@ -199,15 +211,21 @@ def load_reports_for_user(email):
         for r in rows:
             try:
                 decoded_bytes = base64.b64decode(r[1])
-                decrypted = decrypt_bytes(decoded_bytes)
+                file_bytes = decrypt_bytes(decoded_bytes)
+            except Exception:
+                print("File decode failed, using raw")
+                file_bytes = None
+
+            try:
                 decoded_text = base64.b64decode(r[0])
                 text = decrypt_bytes(decoded_text).decode("utf-8")
             except Exception:
-                decrypted = None
+                print("Text decode failed, using raw text")
+                text = r[0]
 
             reports.append({
                 "text": text,
-                "file_bytes": decrypted,
+                "file_bytes": file_bytes,
                 "file_type": r[2],
                 "file_name": r[3],
                 "created_at": r[4],
