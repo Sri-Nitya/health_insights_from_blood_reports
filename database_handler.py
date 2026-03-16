@@ -195,9 +195,15 @@ def load_reports_for_user(email):
         rows = cur.fetchall()
         reports = []
         for r in rows:
+            try:
+                decoded_bytes = base64.b64decode(r[1])
+                decrypted = decrypt_bytes(decoded_bytes)
+            except Exception:
+                decrypted = None
+
             reports.append({
                 "text": r[0],
-                "file_bytes": r[1],
+                "file_bytes": decrypted,
                 "file_type": r[2],
                 "file_name": r[3],
                 "created_at": r[4],

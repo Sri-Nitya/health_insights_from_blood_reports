@@ -138,14 +138,6 @@ def dashboard_page():
 
                 if file_bytes and file_type:
 
-                    enc_bytes = base64.b64decode(file_bytes)
-                    try:
-                        from database_handler import decrypt_bytes
-
-                        file_bytes = decrypt_bytes(enc_bytes)
-                    except Exception:
-                        file_bytes = enc_bytes
-
                     if file_type == "application/pdf":
 
                         st.download_button(
@@ -164,7 +156,6 @@ def dashboard_page():
                         )
 
                     elif file_type.startswith("image/"):
-
                         st.image(file_bytes, caption=file_name)
 
                     else:
