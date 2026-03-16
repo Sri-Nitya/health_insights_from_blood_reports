@@ -8,7 +8,7 @@ from google.api_core.exceptions import ResourceExhausted
 MAX_CACHE_SIZE = 50
 
 class GeminiClient:
-    def __init__(self, api_key, model_name="gemini-2.5-flash"):
+    def __init__(self, api_key, model_name="gemini-2.5-flash-lite"):
         self.api_key = api_key
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel(model_name)
@@ -48,7 +48,8 @@ class GeminiClient:
         try:
             response = self.model.generate_content(prompt)
             summary = response.text
-        except ResourceExhausted:
+        except ResourceExhausted as e:
+            print(f"Resource exhausted: {e}")
             return cache.get(key, "AI quota exceeded — please try again later.")
         except Exception:
             return "AI service unavailable. Please try again later."
@@ -88,7 +89,8 @@ class GeminiClient:
         try:
             response = self.model.generate_content(prompt)
             comparison = response.text
-        except ResourceExhausted:
+        except ResourceExhausted as e:
+            print(f"Resource exhausted: {e}")
             return cache.get(key, "AI quota exceeded — please try again later.")
         except Exception:
             return "AI service unavailable. Please try again later."
