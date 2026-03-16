@@ -1,5 +1,5 @@
 import streamlit as st
-from database_handler import load_reports_for_user, save_report, clear_current_session
+from database_handler import load_reports_for_user, save_report, clear_current_session, delete_report
 from utils.ocr import extract_text_from_image
 from utils.pdf_extractor import extract_text_from_pdf
 from utils.gemini_client import GeminiClient
@@ -126,6 +126,11 @@ def dashboard_page():
             for i, report in enumerate(reports[::-1], 1):
 
                 st.markdown(f"#### Report {i}")
+
+                if st.button("Delete Report", key=f"delete_{i}"):   
+                    delete_report(username, report.get("created_at"))
+                    st.success("Report deleted successfully!")
+                    st.rerun()
 
                 file_bytes = report.get("file_bytes")
                 file_type = report.get("file_type")

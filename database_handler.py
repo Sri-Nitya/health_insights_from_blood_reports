@@ -249,3 +249,13 @@ def get_username(email):
     finally:
         conn.close()
         
+def delete_report(email, created_at):
+    conn = _get_conn()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM reports WHERE email = ? AND created_at = ?", (email, created_at))
+        conn.commit()
+    except Exception:
+        pass
+    finally:
+        conn.close()
