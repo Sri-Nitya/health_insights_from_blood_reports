@@ -173,10 +173,12 @@ def save_report(email, text, file_bytes, file_type, file_name):
     cur = conn.cursor()
     try:
         enc = encrypt_bytes(file_bytes)
+        encrypted_text = encrypt_bytes(text.encode("utf-8"))
+        encoded_text = base64.b64encode(encrypted_text).decode("utf-8")
         encoded_bytes = base64.b64encode(enc).decode("utf-8")
         cur.execute(
             "INSERT INTO reports(email, text, file_bytes, file_type, file_name, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (email, text, encoded_bytes, file_type, file_name, datetime.utcnow().isoformat()),
+            (email, encoded_text, encoded_bytes, file_type, file_name, datetime.utcnow().isoformat()),
         )
         conn.commit()
     except Exception:
@@ -198,11 +200,13 @@ def load_reports_for_user(email):
             try:
                 decoded_bytes = base64.b64decode(r[1])
                 decrypted = decrypt_bytes(decoded_bytes)
+                decoded_text = base64.b64decode(r[0])
+                text = decrypt_bytes(decoded_text).decode("utf-8")
             except Exception:
                 decrypted = None
 
             reports.append({
-                "text": r[0],
+                "text": text,
                 "file_bytes": decrypted,
                 "file_type": r[2],
                 "file_name": r[3],
