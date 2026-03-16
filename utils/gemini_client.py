@@ -5,6 +5,7 @@ import os
 import threading
 from google.api_core.exceptions import ResourceExhausted
 
+MAX_CACHE_SIZE = 50
 
 class GeminiClient:
     def __init__(self, api_key, model_name="gemini-2.5-flash"):
@@ -27,6 +28,8 @@ class GeminiClient:
     def _save_cache(self, filename, data):
         path = os.path.join(self.base_dir, filename)
         try:
+            if len(data) > MAX_CACHE_SIZE:
+                data = dict(list(data.items())[-MAX_CACHE_SIZE:])
             with open(path + ".tmp", "w", encoding="utf-8") as f:
                 json.dump(data, f)
             os.replace(path + ".tmp", path)
